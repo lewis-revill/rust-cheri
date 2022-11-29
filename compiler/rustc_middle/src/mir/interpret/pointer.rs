@@ -15,7 +15,8 @@ pub trait PointerArithmetic: HasDataLayout {
 
     #[inline(always)]
     fn pointer_size(&self) -> Size {
-        self.data_layout().pointer_size
+        // TODO: More complexity needed here.
+        self.data_layout().ptr_layout(None).idx_size
     }
 
     #[inline(always)]

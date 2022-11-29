@@ -695,7 +695,8 @@ impl<'mir, 'tcx: 'mir, M: Machine<'mir, 'tcx>> InterpCx<'mir, 'tcx, M> {
             Some(GlobalAlloc::Function(_)) => bug!("We already checked function pointers above"),
             Some(GlobalAlloc::VTable(..)) => {
                 // No data to be accessed here. But vtables are pointer-aligned.
-                return (Size::ZERO, self.tcx.data_layout.pointer_align.abi, AllocKind::VTable);
+                let dl = &self.tcx.data_layout;
+                return (Size::ZERO, dl.ptr_layout(Some(dl.instruction_address_space)).align.abi, AllocKind::VTable);
             }
             // The rest must be dead.
             None => {
@@ -911,7 +912,8 @@ impl<'tcx, 'a, Prov: Provenance, Extra> AllocRefMut<'a, 'tcx, Prov, Extra> {
 
     /// `offset` is relative to this allocation reference, not the base of the allocation.
     pub fn write_ptr_sized(&mut self, offset: Size, val: Scalar<Prov>) -> InterpResult<'tcx> {
-        self.write_scalar(alloc_range(offset, self.tcx.data_layout().pointer_size), val)
+        // TODO: More complexity needed here. idx_size vs ty_size.
+        self.write_scalar(alloc_range(offset, self.tcx.data_layout().ptr_layout(None).ty_size), val)
     }
 
     /// Mark the entire referenced range as uninitialized
@@ -946,8 +948,9 @@ impl<'tcx, 'a, Prov: Provenance, Extra> AllocRef<'a, 'tcx, Prov, Extra> {
 
     /// `offset` is relative to this allocation reference, not the base of the allocation.
     pub fn read_pointer(&self, offset: Size) -> InterpResult<'tcx, Scalar<Prov>> {
+        // TODO: More complexity needed here. idx_size vs ty_size.
         self.read_scalar(
-            alloc_range(offset, self.tcx.data_layout().pointer_size),
+            alloc_range(offset, self.tcx.data_layout().ptr_layout(None).ty_size),
             /*read_provenance*/ true,
         )
     }

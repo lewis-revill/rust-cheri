@@ -1387,6 +1387,7 @@ impl<'a, 'll, 'tcx> Builder<'a, 'll, 'tcx> {
             .map(|(i, (expected_ty, &actual_val))| {
                 let actual_ty = self.val_ty(actual_val);
                 if expected_ty != actual_ty {
+                    dbg!(llfn);
                     debug!(
                         "type mismatch in function call of {:?}. \
                             Expected {:?} for param {}, got {:?}; injecting bitcast",

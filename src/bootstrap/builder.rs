@@ -2098,6 +2098,10 @@ impl<'a> Builder<'a> {
             }
         }
 
+        let envs: Vec<(&OsStr, Option<&OsStr>)> = cargo.get_envs().collect();
+        self.verbose_than(1, &format!("{:?}", envs));
+
+
         Cargo { command: cargo, rustflags, rustdocflags }
     }
 
