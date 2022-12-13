@@ -20,7 +20,7 @@ use rustc_middle::ty::layout::LayoutOf;
 use rustc_middle::ty::{self, Instance, Ty};
 use rustc_middle::{bug, span_bug};
 use rustc_target::abi::{
-    AddressSpace, Align, HasDataLayout, Primitive, Scalar, Size, WrappingRange,
+    Align, HasDataLayout, Primitive, Scalar, Size, WrappingRange,
 };
 use std::ops::Range;
 
@@ -28,6 +28,7 @@ pub fn const_alloc_to_llvm<'ll>(cx: &CodegenCx<'ll, '_>, alloc: ConstAllocation<
     let alloc = alloc.inner();
     let mut llvals = Vec::with_capacity(alloc.provenance().len() + 1);
     let dl = cx.data_layout();
+
     // TODO: More complexity needed here. idx_size vs ty_size.
     let pointer_size = dl.ptr_layout(None).idx_size.bytes() as usize;
 
@@ -102,7 +103,7 @@ pub fn const_alloc_to_llvm<'ll>(cx: &CodegenCx<'ll, '_>, alloc: ConstAllocation<
         let address_space = match cx.tcx.global_alloc(alloc_id) {
             GlobalAlloc::Function(..) => cx.data_layout().instruction_address_space,
             GlobalAlloc::Static(..) | GlobalAlloc::Memory(..) | GlobalAlloc::VTable(..) => {
-                AddressSpace::DATA
+                cx.data_layout().globals_address_space
             }
         };
 
@@ -272,7 +273,8 @@ impl<'ll> CodegenCx<'ll, '_> {
         let g = if def_id.is_local() && !self.tcx.is_foreign_item(def_id) {
             let llty = self.layout_of(ty).llvm_type(self);
             if let Some(g) = self.get_declared_value(sym) {
-                if self.val_ty(g) != self.type_ptr_to(llty) {
+                // TODO: Pretty sure this should be global.
+                if self.val_ty(g) != self.type_ptr_to_ext(llty, self.tcx.data_layout.globals_address_space) {
                     span_bug!(self.tcx.def_span(def_id), "Conflicting types for static");
                 }
             }
@@ -572,14 +574,14 @@ impl<'ll> StaticMethods for CodegenCx<'ll, '_> {
 
     /// Add a global value to a list to be stored in the `llvm.used` variable, an array of i8*.
     fn add_used_global(&self, global: &'ll Value) {
-        let cast = unsafe { llvm::LLVMConstPointerCast(global, self.type_i8p()) };
+        let cast = unsafe { llvm::LLVMConstPointerCast(global, self.type_i8p_ext(self.tcx.data_layout.globals_address_space)) };
         self.used_statics.borrow_mut().push(cast);
     }
 
     /// Add a global value to a list to be stored in the `llvm.compiler.used` variable,
     /// an array of i8*.
     fn add_compiler_used_global(&self, global: &'ll Value) {
-        let cast = unsafe { llvm::LLVMConstPointerCast(global, self.type_i8p()) };
+        let cast = unsafe { llvm::LLVMConstPointerCast(global, self.type_i8p_ext(self.tcx.data_layout.globals_address_space)) };
         self.compiler_used_statics.borrow_mut().push(cast);
     }
 }
