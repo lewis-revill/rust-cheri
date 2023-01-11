@@ -1716,6 +1716,17 @@ impl<'a, 'tcx, Bx: BuilderMethods<'a, 'tcx>> FunctionCx<'a, 'tcx, Bx> {
                     Immediate(bx.to_immediate_scalar(src_as_dst, dst_scalar)).store(bx, dst);
                     return;
                 }
+                if src_scalar.primitive() != abi::Pointer && dst_scalar.primitive() == abi::Pointer {
+                    // We are generating an invalid pointer - IE with no provenance - with the
+                    // address set to the given scalar.
+                    assert_eq!(src_scalar.range(bx), dst_scalar.range(bx));
+
+                    // We need to basically set the address of a null pointer to be the src value.
+                    let src = bx.from_immediate(src.immediate());
+                    let new_dst = bx.const_null(bx.backend_type(dst.layout));
+                    let src_as_dst = bx.set_pointer_address(new_dst, src);
+                    Immediate(bx.to_immediate_scalar(src_as_dst, dst_scalar)).store(bx, dst);
+                }
             }
             _ => {}
         }

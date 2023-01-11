@@ -275,7 +275,7 @@ impl<'tcx> SizeSkeleton<'tcx> {
         // First try computing a static layout.
         let err = match tcx.layout_of(param_env.and(ty)) {
             Ok(layout) => {
-                return Ok(SizeSkeleton::Known(layout.size));
+                return Ok(SizeSkeleton::Known(layout.transmute_size));
             }
             Err(err) => err,
         };
@@ -614,6 +614,7 @@ where
                     largest_niche: None,
                     align: tcx.data_layout.i8_align,
                     size: Size::ZERO,
+                    transmute_size: Size::ZERO,
                 })
             }
 

@@ -95,6 +95,8 @@ fn scalar_pair<'tcx>(cx: &LayoutCx<'tcx, TyCtxt<'tcx>>, a: Scalar, b: Scalar) ->
     let align = a.align(dl).max(b_align).max(dl.aggregate_align);
     let b_offset = a.size(dl).align_to(b_align.abi);
     let size = (b_offset + b.size(dl)).align_to(align.abi);
+    // FIXME: This is likely wrong.
+    let transmute_size = a.range(dl) + b.range(dl);
 
     // HACK(nox): We iter on `b` and then `a` because `max_by_key`
     // returns the last maximum.
@@ -113,6 +115,7 @@ fn scalar_pair<'tcx>(cx: &LayoutCx<'tcx, TyCtxt<'tcx>>, a: Scalar, b: Scalar) ->
         largest_niche,
         align,
         size,
+        transmute_size,
     }
 }
 
@@ -257,6 +260,8 @@ fn univariant_uninterned<'tcx>(
 
     let size = min_size.align_to(align.abi);
     let mut abi = Abi::Aggregate { sized };
+    // TODO: Can we do better than this?
+    let transmute_size = size;
 
     // Unpack newtype ABIs and find scalar pairs.
     if sized && size.bytes() > 0 {
@@ -331,6 +336,7 @@ fn univariant_uninterned<'tcx>(
         largest_niche,
         align,
         size,
+        transmute_size,
     })
 }
 
@@ -389,6 +395,7 @@ fn layout_of_uncached<'tcx>(
             largest_niche: None,
             align: dl.i8_align,
             size: Size::ZERO,
+            transmute_size: Size::ZERO,
         }),
 
         // Potentially-wide pointers.
@@ -445,6 +452,8 @@ fn layout_of_uncached<'tcx>(
             let count = count.try_eval_usize(tcx, param_env).ok_or(LayoutError::Unknown(ty))?;
             let element = cx.layout_of(element)?;
             let size = element.size.checked_mul(count, dl).ok_or(LayoutError::SizeOverflow(ty))?;
+            // TODO: Can we do better than this?
+            let transmute_size = size;
 
             let abi = if count != 0 && tcx.conservative_is_privately_uninhabited(param_env.and(ty))
             {
@@ -462,6 +471,7 @@ fn layout_of_uncached<'tcx>(
                 largest_niche,
                 align: element.align,
                 size,
+                transmute_size,
             })
         }
         ty::Slice(element) => {
@@ -473,6 +483,7 @@ fn layout_of_uncached<'tcx>(
                 largest_niche: None,
                 align: element.align,
                 size: Size::ZERO,
+                transmute_size: Size::ZERO,
             })
         }
         ty::Str => tcx.intern_layout(LayoutS {
@@ -482,6 +493,7 @@ fn layout_of_uncached<'tcx>(
             largest_niche: None,
             align: dl.i8_align,
             size: Size::ZERO,
+            transmute_size: Size::ZERO,
         }),
 
         // Odd unit types.
@@ -619,6 +631,8 @@ fn layout_of_uncached<'tcx>(
             let size = e_ly.size.checked_mul(e_len, dl).ok_or(LayoutError::SizeOverflow(ty))?;
             let align = dl.vector_align(size);
             let size = size.align_to(align.abi);
+            // TODO: Can we do better than this?
+            let transmute_size = size;
 
             // Compute the placement of the vector fields:
             let fields = if is_array {
@@ -633,6 +647,7 @@ fn layout_of_uncached<'tcx>(
                 abi: Abi::Vector { element: e_abi, count: e_len },
                 largest_niche: e_ly.largest_niche,
                 size,
+                transmute_size,
                 align,
             })
         }
@@ -714,6 +729,8 @@ fn layout_of_uncached<'tcx>(
                     largest_niche: None,
                     align,
                     size: size.align_to(align.abi),
+                    // TODO: Can we do better than this?
+                    transmute_size: size.align_to(align.abi),
                 }));
             }
 
@@ -928,6 +945,8 @@ fn layout_of_uncached<'tcx>(
                         + variant_layouts[largest_variant_index].fields.offset(field_index);
                     let niche_size = niche.value.size(dl);
                     let size = variant_layouts[largest_variant_index].size.align_to(align.abi);
+                    // TODO: Check if we can do anything better than this.
+                    let transmute_size = size;
 
                     let all_variants_fit =
                         variant_layouts.iter_enumerated_mut().all(|(i, layout)| {
@@ -1025,6 +1044,7 @@ fn layout_of_uncached<'tcx>(
                         abi,
                         largest_niche,
                         size,
+                        transmute_size,
                         align,
                     };
 
@@ -1109,6 +1129,8 @@ fn layout_of_uncached<'tcx>(
 
             // Align the maximum variant size to the largest alignment.
             size = size.align_to(align.abi);
+            // TODO: Can we do better here?
+            let transmute_size = size;
 
             // TODO: More complexity needed here.
             if size.bytes() >= dl.obj_size_bound(None) {
@@ -1295,6 +1317,7 @@ fn layout_of_uncached<'tcx>(
                 abi,
                 align,
                 size,
+                transmute_size,
             };
 
             let tagged_layout = TmpLayout { layout: tagged_layout, variants: layout_variants };
@@ -1650,6 +1673,8 @@ fn generator_layout<'tcx>(
         .collect::<Result<IndexVec<VariantIdx, _>, _>>()?;
 
     size = size.align_to(align.abi);
+    // TODO: Can we do better than this?
+    let transmute_size = size;
 
     let abi = if prefix.abi.is_uninhabited() || variants.iter().all(|v| v.abi().is_uninhabited()) {
         Abi::Uninhabited
@@ -1668,6 +1693,7 @@ fn generator_layout<'tcx>(
         abi,
         largest_niche: prefix.largest_niche,
         size,
+        transmute_size,
         align,
     });
     debug!("generator layout ({:?}): {:#?}", ty, layout);

@@ -694,7 +694,7 @@ impl<'mir, 'tcx: 'mir, M: Machine<'mir, 'tcx>> InterpCx<'mir, 'tcx, M> {
 
         // Read tag and sanity-check `tag_layout`.
         let tag_val = self.read_immediate(&self.operand_field(op, tag_field)?)?;
-        assert_eq!(tag_layout.size, tag_val.layout.size);
+        assert_eq!(tag_layout.transmute_size, tag_val.layout.transmute_size);
         assert_eq!(tag_layout.abi.is_signed(), tag_val.layout.abi.is_signed());
         trace!("tag value: {}", tag_val);
 

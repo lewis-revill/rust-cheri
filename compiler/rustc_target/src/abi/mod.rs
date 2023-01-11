@@ -835,6 +835,18 @@ impl Primitive {
         }
     }
 
+    pub fn range<C: HasDataLayout>(self, cx: &C) -> Size {
+        let dl = cx.data_layout();
+
+        match self {
+            Int(i, _) => i.size(),
+            F32 => Size::from_bits(32),
+            F64 => Size::from_bits(64),
+            // TODO: More complexity is needed here.
+            Pointer => dl.ptr_layout(None).idx_size,
+        }
+    }
+
     pub fn align<C: HasDataLayout>(self, cx: &C) -> AbiAndPrefAlign {
         let dl = cx.data_layout();
 
@@ -979,6 +991,10 @@ impl Scalar {
 
     pub fn size(self, cx: &impl HasDataLayout) -> Size {
         self.primitive().size(cx)
+    }
+
+    pub fn range(self, cx: &impl HasDataLayout) -> Size {
+        self.primitive().range(cx)
     }
 
     #[inline]
@@ -1367,20 +1383,26 @@ pub struct LayoutS<'a> {
 
     pub align: AbiAndPrefAlign,
     pub size: Size,
+    /// The size to consider when transmuting - IE the actual affected bits by the transmute
+    /// operation. Usually equal to size but in cases where transmute does not directly transpose
+    /// bits into the destination type it represents the actual size of the transmuted bits.
+    pub transmute_size: Size,
 }
 
 impl<'a> LayoutS<'a> {
     pub fn scalar<C: HasDataLayout>(cx: &C, scalar: Scalar) -> Self {
         let largest_niche = Niche::from_scalar(cx, Size::ZERO, scalar);
         let size = scalar.size(cx);
+        let transmute_size = scalar.range(cx);
         let align = scalar.align(cx);
         LayoutS {
             variants: Variants::Single { index: VariantIdx::new(0) },
             fields: FieldsShape::Primitive,
             abi: Abi::Scalar(scalar),
             largest_niche,
-            size,
             align,
+            size,
+            transmute_size
         }
     }
 }
@@ -1390,9 +1412,10 @@ impl<'a> fmt::Debug for LayoutS<'a> {
         // This is how `Layout` used to print before it become
         // `Interned<LayoutS>`. We print it like this to avoid having to update
         // expected output in a lot of tests.
-        let LayoutS { size, align, abi, fields, largest_niche, variants } = self;
+        let LayoutS { size, transmute_size, align, abi, fields, largest_niche, variants } = self;
         f.debug_struct("Layout")
             .field("size", size)
+            .field("transmute_size", transmute_size)
             .field("align", align)
             .field("abi", abi)
             .field("fields", fields)
@@ -1436,6 +1459,10 @@ impl<'a> Layout<'a> {
 
     pub fn size(self) -> Size {
         self.0.0.size
+    }
+
+    pub fn transmute_size(self) -> Size {
+        self.0.0.transmute_size
     }
 }
 
