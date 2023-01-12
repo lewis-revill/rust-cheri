@@ -1277,7 +1277,7 @@ pub trait PrettyPrinter<'tcx>:
                                     // TODO: More complexity needed here.
                                     let len = int.assert_bits(self.tcx().data_layout.ptr_layout(None).idx_size);
                                     let range =
-                                        AllocRange { start: offset, size: Size::from_bytes(len) };
+                                        AllocRange { start: offset, size: Size::from_bytes(len), range: Size::from_bytes(len)};
                                     if let Ok(byte_str) =
                                         alloc.inner().get_bytes_strip_provenance(&self.tcx(), range)
                                     {

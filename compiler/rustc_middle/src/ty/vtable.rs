@@ -74,6 +74,7 @@ pub(super) fn vtable_allocation_provider<'tcx>(
     // rather than the index size.
     // TODO: More complexity needed here.
     let ptr_size = tcx.data_layout.ptr_layout(None).ty_size;
+    let idx_size = tcx.data_layout.ptr_layout(None).idx_size;
     let ptr_align = tcx.data_layout.ptr_layout(None).align.abi;
 
     let vtable_size = ptr_size * u64::try_from(vtable_entries.len()).unwrap();
@@ -111,7 +112,7 @@ pub(super) fn vtable_allocation_provider<'tcx>(
             }
         };
         vtable
-            .write_scalar(&tcx, alloc_range(ptr_size * idx, ptr_size), scalar)
+            .write_scalar(&tcx, alloc_range(ptr_size * idx, ptr_size, idx_size), scalar)
             .expect("failed to build vtable representation");
     }
 

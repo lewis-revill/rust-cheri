@@ -169,6 +169,7 @@ impl AllocError {
 pub struct AllocRange {
     pub start: Size,
     pub size: Size,
+    pub range: Size,
 }
 
 impl fmt::Debug for AllocRange {
@@ -179,14 +180,20 @@ impl fmt::Debug for AllocRange {
 
 /// Free-starting constructor for less syntactic overhead.
 #[inline(always)]
-pub fn alloc_range(start: Size, size: Size) -> AllocRange {
-    AllocRange { start, size }
+pub fn alloc_range(start: Size, size: Size, range: Size) -> AllocRange {
+    assert!(size >= range);
+    AllocRange { start, size, range }
 }
 
 impl AllocRange {
     #[inline]
     pub fn from(r: Range<Size>) -> Self {
-        alloc_range(r.start, r.end - r.start) // `Size` subtraction (overflow-checked)
+        alloc_range(r.start, r.end - r.start, r.end - r.start) // `Size` subtraction (overflow-checked)
+    }
+
+    #[inline(always)]
+    pub fn end_range(self) -> Size {
+        self.start + self.range // This does overflow checking.
     }
 
     #[inline(always)]
@@ -198,7 +205,7 @@ impl AllocRange {
     #[inline]
     pub fn subrange(self, subrange: AllocRange) -> AllocRange {
         let sub_start = self.start + subrange.start;
-        let range = alloc_range(sub_start, subrange.size);
+        let range = alloc_range(sub_start, subrange.size, subrange.range);
         assert!(range.end() <= self.end(), "access outside the bounds for given AllocRange");
         range
     }
@@ -421,7 +428,7 @@ impl<Prov: Provenance, Extra> Allocation<Prov, Extra> {
 
         if read_provenance {
             // TODO: More complexity needed here. idx_size vs ty_size.
-            assert_eq!(range.size, cx.data_layout().ptr_layout(None).idx_size);
+            assert_eq!(range.size, cx.data_layout().ptr_layout(None).ty_size);
 
             // When reading data with provenance, the easy case is finding provenance exactly where we
             // are reading, then we can put data and provenance back together and return that.
@@ -520,7 +527,7 @@ impl<Prov: Copy, Extra> Allocation<Prov, Extra> {
 
     /// Get the provenance of a single byte.
     fn offset_get_provenance(&self, cx: &impl HasDataLayout, offset: Size) -> Option<Prov> {
-        let prov = self.range_get_provenance(cx, alloc_range(offset, Size::from_bytes(1)));
+        let prov = self.range_get_provenance(cx, alloc_range(offset, Size::from_bytes(1), Size::from_bytes(1)));
         assert!(prov.len() <= 1);
         prov.first().map(|(_offset, prov)| *prov)
     }

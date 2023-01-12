@@ -540,8 +540,9 @@ where
                     )
                 };
                 let size = s.size(&tcx);
+                let range = s.range(&tcx);
                 assert_eq!(size, layout.size, "abi::Scalar size does not match layout size");
-                alloc.write_scalar(alloc_range(Size::ZERO, size), scalar)
+                alloc.write_scalar(alloc_range(Size::ZERO, size, range), scalar)
             }
             Immediate::ScalarPair(a_val, b_val) => {
                 // We checked `ptr_align` above, so all fields will have the alignment they need.
@@ -554,6 +555,7 @@ where
                     )
                 };
                 let (a_size, b_size) = (a.size(&tcx), b.size(&tcx));
+                let (a_range, b_range) = (a.range(&tcx), b.range(&tcx));
                 let b_offset = a_size.align_to(b.align(&tcx).abi);
                 assert!(b_offset.bytes() > 0); // in `operand_field` we use the offset to tell apart the fields
 
@@ -561,8 +563,8 @@ where
                 // but that does not work: We could be a newtype around a pair, then the
                 // fields do not match the `ScalarPair` components.
 
-                alloc.write_scalar(alloc_range(Size::ZERO, a_size), a_val)?;
-                alloc.write_scalar(alloc_range(b_offset, b_size), b_val)
+                alloc.write_scalar(alloc_range(Size::ZERO, a_size, a_range), a_val)?;
+                alloc.write_scalar(alloc_range(b_offset, b_size, b_range), b_val)
             }
             Immediate::Uninit => alloc.write_uninit(),
         }
