@@ -20,6 +20,12 @@ pub trait PointerArithmetic: HasDataLayout {
     }
 
     #[inline(always)]
+    fn pointer_range(&self) -> Size {
+        // TODO: More complexity needed here.
+        self.data_layout().ptr_layout(None).idx_size
+    }
+
+    #[inline(always)]
     fn max_size_of_val(&self) -> Size {
         Size::from_bytes(self.machine_isize_max())
     }
